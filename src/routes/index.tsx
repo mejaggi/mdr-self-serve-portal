@@ -1,24 +1,64 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from '@tanstack/react-router';
+import { useState } from 'react';
+import { ArrowUpRight, ArrowRight, Bell, Search, LayoutGrid, ClipboardList, ShieldCheck, History, Settings, CircleHelp, ChevronDown, Plus, Clock3, CheckCircle2, Zap, TrendingUp, Sparkles, Menu, X, ChevronRight, Users, Cloud, Code2, FileText, Check, Circle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from '@/components/ui/dialog';
+import { teams, initialRequests, reviewRequest, type PortalRequest } from '@/lib/portal-data';
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
-export const Route = createFileRoute("/")({
-  component: Index,
+export const Route = createFileRoute('/')({
+ head:()=>({meta:[{title:'Tech for Tech — Self-Service Portal'},{name:'description',content:'A unified workspace for team services, operational requests and approvals.'},{property:'og:title',content:'Tech for Tech — Self-Service Portal'},{property:'og:description',content:'Discover team services and manage operational requests in one place.'},{property:'og:type',content:'website'},{name:'twitter:card',content:'summary_large_image'}]}),
+ component:Portal,
 });
-
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
+function Portal(){
+ const [view,setView]=useState('Service catalogue');
+ const [filter,setFilter]=useState('All teams');
+ const [search,setSearch]=useState('');
+ const [menu,setMenu]=useState(false);
+ const [requests,setRequests]=useState(initialRequests);
+ const [service,setService]=useState<{action:string;team:string}|null>(null);
+ const [teamOpen,setTeamOpen]=useState<(typeof teams)[number]|null>(null);
+ const [detail,setDetail]=useState<PortalRequest|null>(null);
+ const [comments,setComments]=useState('');
+ const [notice,setNotice]=useState<string|null>(null);
+ const [newPicker,setNewPicker]=useState(false);
+ const pending=requests.filter(r=>r.status==='Pending approval').length;
+ const openService=(action:string,team:string)=>{setService({action,team});setTeamOpen(null);setNewPicker(false);};
+ const go=(name:string)=>{setView(name);setMenu(false);setSearch('');};
+ const visibleTeams=teams.filter(t=>(filter==='All teams'||t.category===filter)&&`${t.name} ${t.services.join(' ')}`.toLowerCase().includes(search.toLowerCase()));
+ const rows=(view==='Approvals'?requests.filter(r=>r.status==='Pending approval'):view==='My requests'?requests.filter(r=>r.requester==='Alex Morgan'):requests).filter(r=>`${r.action} ${r.team} ${r.id}`.toLowerCase().includes(search.toLowerCase()));
+ const review=(approved:boolean)=>{if(!detail)return;const updated=reviewRequest(detail,approved,comments);setRequests(prev=>prev.map(r=>r.id===updated.id?updated:r));setDetail(updated);};
+ return <div className="portal-shell">
+  <aside className={`sidebar ${menu?'open':''}`}>
+   <div className="brand"><span className="brand-mark"><i/><i/><i/><i/></span>tech for tech</div>
+   <div className="brand-subtitle">ABC · SELF-SERVICE PORTAL</div>
+   <div className="nav-label">Workspace</div>
+   {[{name:'Service catalogue',icon:LayoutGrid},{name:'My requests',icon:ClipboardList,count:requests.filter(r=>r.requester==='Alex Morgan'&&r.status!=='Completed').length},{name:'Approvals',icon:ShieldCheck,count:pending},{name:'Activity & audit',icon:History}].map(n=><Button key={n.name} variant="ghost" className={`nav-item ${view===n.name?'active':''}`} onClick={()=>go(n.name)}><n.icon/>{n.name}{n.count!==undefined&&<span className="count">{n.count}</span>}</Button>)}
+   <div className="nav-label">Management</div>
+   <Button variant="ghost" className={`nav-item ${view==='Team directory'?'active':''}`} onClick={()=>go('Team directory')}><Users/>Team directory</Button>
+   <Button variant="ghost" className="nav-item" onClick={()=>setNotice('Settings')}><Settings/>Settings</Button>
+   <div className="sidebar-bottom"><Button variant="ghost" className="nav-item" onClick={()=>setNotice('Help & support')}><CircleHelp/>Help & support<ArrowUpRight className="ml-auto"/></Button>
+   <div className="profile"><span className="avatar">AM</span><div><b className="text-xs text-primary-foreground">Alex Morgan</b><div className="mt-1 text-[10px]">Platform Engineering</div></div><ChevronDown size={14} className="ml-auto"/></div></div>
+  </aside>
+  <div className="main-shell"><header className="topbar"><div className="flex items-center gap-3"><Button variant="ghost" size="icon" className="mobile-menu" aria-label="Toggle navigation" onClick={()=>setMenu(!menu)}>{menu?<X/>:<Menu/>}</Button><span className="text-xs text-muted-foreground">Workspace</span><ChevronRight size={12} className="text-muted-foreground"/><span className="text-xs font-semibold">{view}</span></div><div className="topbar-right"><span className="environment"><i className="dot"/>All systems operational</span><Button variant="ghost" size="icon" aria-label="Notifications" onClick={()=>setNotice('Notifications')}><Bell/></Button><span className="avatar">AM</span></div></header>
+  <main className="content">
+   <div className="heading-row"><div><div className="eyebrow">YOUR WORKSPACE, CONNECTED</div><h1>{view==='Service catalogue'?'Good morning, Alex':view}</h1><p className="subtitle">{view==='Service catalogue'?'Everything you need to get things done. Less waiting, more building.':view==='Approvals'?'Review requests and keep your teams moving.':view==='My requests'?'Your operational requests, from submission to completion.':view==='Team directory'?'Find the people and services behind every team.':'A clear record of requests, decisions and operational activity.'}</p></div><Button onClick={()=>setNewPicker(true)}><Plus/>New request</Button></div>
+   <div className="overview">
+   {[{label:'My open requests',icon:ClipboardList,value:requests.filter(r=>r.requester==='Alex Morgan'&&!['Completed','Rejected'].includes(r.status)).length,note:'Across your teams'},{label:'Awaiting my approval',icon:Clock3,value:pending,note:'Needs your attention'},{label:'Completed this month',icon:CheckCircle2,value:24,note:'+8 from last month'},{label:'Time saved this month',icon:Zap,value:'32h',note:'Less manual work'}].map(s=><div className="stat" key={s.label}><div className="stat-label"><s.icon size={14}/>{s.label}</div><div className="stat-value">{s.value}<span className="stat-note">{s.note}</span></div></div>)}
+   </div>
+   {view==='Service catalogue'&&<><div className="section-title"><h2 className="flex items-center gap-2"><Sparkles size={17} className="text-primary"/>Picked for you</h2><span className="text-[10px] text-muted-foreground">Based on your team's activity</span></div>
+    <div className="recommendations">{[{action:'Onboard a joiner',team:'Identity & Access',icon:Users,tone:'',sub:'Identity & Access · Popular'},{action:'Provision an environment',team:'Cloud & Infrastructure',icon:Cloud,tone:'blue',sub:'Cloud & Infrastructure · Recently used'},{action:'Run a GitHub workflow',team:'Application Engineering',icon:Code2,tone:'violet',sub:'Application Engineering · For your team'}].map(q=><Button variant="ghost" className="quick-card" key={q.action} onClick={()=>openService(q.action,q.team)}><span className={`icon-tile ${q.tone}`}><q.icon size={18}/></span><span><b>{q.action}</b><small>{q.sub}</small></span><ArrowUpRight/></Button>)}</div></>}
+   {['Service catalogue','Team directory'].includes(view)?<>
+    <div className="section-title"><h2>Explore your teams <span className="ml-2 text-xs font-normal text-muted-foreground">06</span></h2><span className="text-[10px] text-muted-foreground">One portal. Every team.</span></div>
+    <div className="team-toolbar"><div className="filters">{['All teams','Application','Infrastructure','Business'].map(f=><Button key={f} variant="ghost" className={`filter ${f===filter?'selected':''}`} onClick={()=>setFilter(f)}>{f}</Button>)}</div><label className="search-box"><Search/><Input aria-label="Search teams and services" placeholder="Search teams or services…" value={search} onChange={e=>setSearch(e.target.value)}/></label></div>
+    <div className="team-grid">{visibleTeams.map(t=><article className="team-card" key={t.id}><div className="team-card-top"><span className={`icon-tile ${t.tone}`}><t.icon size={21}/></span><span className="team-category">{t.category}</span></div><h3>{t.name}</h3><p className="team-description">{t.description}</p><div>{t.services.map(s=><Button variant="ghost" className="service-link" key={s} onClick={()=>openService(s,t.name)}><ChevronRight/>{s}</Button>)}</div><div className="card-footer"><span>{view==='Team directory'?t.owner:`${t.count} services available`}</span><Button variant="link" onClick={()=>setTeamOpen(t)}>Explore team<ArrowRight/></Button></div></article>)}</div>{visibleTeams.length===0&&<div className="empty-state">No teams match your search.</div>}
+   </>:<div className="mb-5 flex justify-end"><label className="search-box"><Search/><Input aria-label="Search requests" placeholder="Search requests…" value={search} onChange={e=>setSearch(e.target.value)}/></label></div>}
+   {view!=='Team directory'&&<section className="activity-section"><div className="section-title"><h2>{view==='Service catalogue'?'Recent activity':view==='Approvals'?'Approval queue':view==='My requests'?'Your requests':'Audit trail'}</h2>{view==='Service catalogue'&&<Button variant="link" size="sm" onClick={()=>go('My requests')}>View all requests<ArrowRight/></Button>}</div><div className="table-wrap"><table><thead><tr><th>Request</th><th>Team</th><th>Status</th><th>Submitted</th><th aria-label="View request"/></tr></thead><tbody>{(view==='Service catalogue'?rows.slice(0,3):rows).map(r=><tr key={r.id}><td><div className="font-semibold">{r.action}</div><div className="mt-1 text-[10px] text-muted-foreground">{r.id}</div></td><td className="text-muted-foreground">{r.team}</td><td><span className={`status ${r.status==='Pending approval'?'pending':r.status==='Executing'?'executing':r.status==='Rejected'?'rejected':''}`}>{r.status}</span></td><td className="text-muted-foreground">{r.date}</td><td><Button variant="ghost" size="icon" aria-label={`View ${r.id}`} onClick={()=>{setDetail(r);setComments('');}}><ArrowUpRight/></Button></td></tr>)}</tbody></table>{rows.length===0&&<div className="empty-state">No requests to display.</div>}</div></section>}
+   <footer className="footer"><span>Tech for Tech · Built for the way we work.</span><span className="flex items-center gap-1"><ShieldCheck size={12}/>Approval-led. Auditable. Secure.<span className="ml-3">Wireframe · Sample data</span></span></footer>
+  </main></div>
+  <Dialog open={Boolean(service)} onOpenChange={open=>{if(!open)setService(null);}}><DialogContent className="max-h-[90dvh] overflow-y-auto"><DialogHeader><DialogTitle>{service?.action}</DialogTitle><DialogDescription>{service?.team} · New service request</DialogDescription></DialogHeader><form className="request-form" onSubmit={e=>{e.preventDefault();if(!service)return;const data=new FormData(e.currentTarget);const r:PortalRequest={id:`REQ-${1043+requests.length-initialRequests.length}`,action:service.action,team:service.team,subject:String(data.get('subject')),reason:String(data.get('reason')),status:'Pending approval',date:'10 Oct 2026',requester:'Alex Morgan',comments:''};setRequests(prev=>[r,...prev]);setService(null);setDetail(r);setView('My requests');}}><label className="form-field">{service?.action.toLowerCase().includes('joiner')||service?.action.toLowerCase().includes('leaver')?'Employee name and email':service?.action.includes('AD group')?'AD group name':'User, resource or project'}<Input name="subject" required placeholder={service?.action.includes('AD group')?'e.g. APP-Finance-Readers':'Enter the request details'}/></label><label className="form-field">Environment<select name="environment"><option>Non-production</option><option>Production</option><option>Not applicable</option></select></label><label className="form-field">Business justification<textarea name="reason" required placeholder="Why is this request needed?"/></label><div className="approval-note"><ShieldCheck size={18}/><span>Approval required from the {service?.team} owner before any action can run.</span></div><div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={()=>setService(null)}>Cancel</Button><Button type="submit">Submit request<ArrowRight/></Button></div></form></DialogContent></Dialog>
+  <Dialog open={newPicker||Boolean(teamOpen)} onOpenChange={open=>{if(!open){setNewPicker(false);setTeamOpen(null);}}}><DialogContent className="max-h-[85dvh] overflow-y-auto"><DialogHeader><DialogTitle>{teamOpen?.name||'Choose a service'}</DialogTitle><DialogDescription>{teamOpen?.description||'Select a team service to start your request.'}</DialogDescription></DialogHeader>{(teamOpen?[teamOpen]:teams).map(t=><div key={t.id}>{!teamOpen&&<h3 className="mt-2">{t.name}</h3>}{t.services.map(s=><Button key={s} variant="ghost" className="w-full justify-between" onClick={()=>openService(s,t.name)}>{s}<ArrowRight/></Button>)}</div>)}</DialogContent></Dialog>
+  <Dialog open={Boolean(detail)} onOpenChange={open=>{if(!open)setDetail(null);}}><DialogContent className="max-h-[90dvh] overflow-y-auto"><DialogHeader><DialogTitle>{detail?.action}</DialogTitle><DialogDescription>{detail?.id} · {detail?.team}</DialogDescription></DialogHeader>{detail&&<><div className="detail-list"><div><span>Status</span><div className="mt-2"><span className={`status ${detail.status==='Pending approval'?'pending':''}`}>{detail.status}</span></div></div><div><span>Requested by</span><p className="mt-1">{detail.requester}</p></div><div><span>User / resource</span><p className="mt-1">{detail.subject}</p></div><div><span>Business justification</span><p className="mt-1">{detail.reason}</p></div></div><div className="timeline"><div className="flex gap-2"><Check size={15} className="text-primary"/>Request submitted · {detail.date}</div><div className="flex gap-2"><Circle size={15}/>{detail.status==='Pending approval'?'Awaiting team owner approval':detail.status==='Rejected'?'Rejected by Alex Morgan':`Team owner approval · ${detail.status==='Approved'?'Approved by Alex Morgan':'Approved'}`}</div>{detail.comments&&<div className="text-muted-foreground">Decision note: {detail.comments}</div>}{['Completed','Executing'].includes(detail.status)&&<div className="flex gap-2"><CheckCircle2 size={15}/>{detail.status==='Completed'?'Execution completed':'Execution in progress'}</div>}</div>{detail.status==='Pending approval'&&<><label className="form-field">Decision note<textarea value={comments} onChange={e=>setComments(e.target.value)} placeholder="Add context for the requester"/></label><div className="flex justify-end gap-2"><Button variant="outline" onClick={()=>review(false)}>Reject</Button><Button onClick={()=>review(true)}><Check/>Approve</Button></div></>}{detail.status==='Approved'&&<div className="approval-note">Approval recorded in this wireframe. No external operation has been run.</div>}</>}</DialogContent></Dialog>
+  <Dialog open={Boolean(notice)} onOpenChange={open=>{if(!open)setNotice(null);}}><DialogContent><DialogHeader><DialogTitle>{notice}</DialogTitle><DialogDescription>{notice==='Settings'?'Your workspace preferences':notice==='Notifications'?'Updates on your requests':'Contact your team service owner'}</DialogDescription></DialogHeader>{notice==='Notifications'?<div className="detail-list"><p>{pending} requests are awaiting approval.</p><Button onClick={()=>{setNotice(null);go('Approvals');}}>Open approval queue<ArrowRight/></Button></div>:notice==='Settings'?<div className="detail-list"><p>Organization: ABC</p><p>Workspace: Platform Engineering</p><p>Profile: Alex Morgan · Sample requester / approver</p></div>:<div className="detail-list"><p>Choose a team to find the owner of the service you need.</p><Button onClick={()=>{setNotice(null);go('Team directory');}}>Open team directory<ArrowRight/></Button></div>}</DialogContent></Dialog>
+ </div>;
 }
