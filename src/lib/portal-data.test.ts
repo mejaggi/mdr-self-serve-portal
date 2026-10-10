@@ -3,12 +3,17 @@ import { initialRequests,reviewRequest } from './portal-data';
 describe('Approval-first wireframe',()=>{
  it('approval records Approved rather than running an operation',()=>{
   const request=initialRequests[0];
+  if(!request) throw new Error('Missing pending sample request');
   expect(reviewRequest(request,true,'Approved for project').status).toBe('Approved');
  });
  it('rejection stops a pending operation',()=>{
-  expect(reviewRequest(initialRequests[0],false,'Not needed').status).toBe('Rejected');
+  const request=initialRequests[0];
+  if(!request) throw new Error('Missing pending sample request');
+  expect(reviewRequest(request,false,'Not needed').status).toBe('Rejected');
  });
  it('a review cannot change an executing operation',()=>{
-  expect(reviewRequest(initialRequests[1],false,'Stop').status).toBe('Executing');
+  const request=initialRequests[1];
+  if(!request) throw new Error('Missing executing sample request');
+  expect(reviewRequest(request,false,'Stop').status).toBe('Executing');
  });
 });
